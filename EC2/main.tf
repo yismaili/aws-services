@@ -230,7 +230,6 @@ resource "null_resource" "setup_server" {
 
   provisioner "remote-exec" {
     inline = [
-      # Wait for system to settle
       "echo 'Waiting for system initialization...'",
       "sleep 60",
 
