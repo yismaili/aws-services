@@ -10,8 +10,8 @@ terraform {
 
 provider "aws" {
   region     = var.aws_region
-  # access_key = var.aws_access_key
-  # secret_key = var.aws_secret_key
+  access_key = var.aws_access_key
+  secret_key = var.aws_secret_key
 }
 
 # Get the latest Ubuntu AMI (Amazon Machine Image) we use it to automatically selects the latest Ubuntu AMI,
@@ -175,46 +175,29 @@ resource "aws_key_pair" "main" {
 
 # Create multiple EC2 instances
 resource "aws_instance" "servers" {
-  # Number of instances to launch (from variable)
   count = var.instance_count
-
-  # AMI (Ubuntu image ID fetched dynamically)
   ami           = data.aws_ami.ubuntu.id
   
-  # EC2 instance type (e.g., t3.micro, t3.medium)
   instance_type = var.instance_type
-
-  # SSH key pair to access the instance
   key_name = aws_key_pair.main.key_name
-
-  # Security group(s) to attach
   vpc_security_group_ids = [aws_security_group.server_sg.id]
-
-  # Subnet for the instance:
-  # If creating a VPC, use the first subnet
-  # Otherwise, set to null (may use default subnet if available)
   subnet_id = var.create_vpc ? aws_subnet.main[0].id : null
-
-  # Prevent accidental termination if enabled
   disable_api_termination = var.enable_termination_protection
-
-  # Enable detailed monitoring (CloudWatch) if requested
   monitoring = var.enable_detailed_monitoring
 
-  # Root volume configuration
   root_block_device {
-    volume_type           = "gp3"                # Fast, cost-effective storage
-    volume_size           = var.root_volume_size # Disk size in GB
-    delete_on_termination = true                 # Auto-delete when instance is destroyed
-    encrypted             = true                 # Encrypt volume by default
+    volume_type           = "gp3"               
+    volume_size           = var.root_volume_size 
+    delete_on_termination = true                
+    encrypted             = true                 #
   }
 
   # Tags for identification
   tags = merge({
-    Name        = var.instance_names[count.index] # Instance name (from list)
-    Environment = var.environment                 # Environment (e.g., dev, prod)
-    Project     = var.project_name                # Project name
-    Docker      = "true"                          # Mark that it supports Docker
+    Name        = var.instance_names[count.index] 
+    Environment = var.environment                 
+    Project     = var.project_name                
+    Docker      = "true"                          
   }, {
     # Add extra tags, with values set to "true"
     for tag in var.additional_tags :

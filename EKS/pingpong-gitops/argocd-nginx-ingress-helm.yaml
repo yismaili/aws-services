@@ -1,0 +1,99 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-ingress-controller
+  namespace: argocd
+  labels:
+    app: nginx-ingress
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    targetRevision: 4.8.3 
+    helm:
+      values: |
+        controller:
+          # Service configuration
+          service:
+            type: LoadBalancer
+            # For AWS EKS - uncomment these annotations
+            annotations:
+              service.beta.kubernetes.io/aws-load-balancer-type: nlb
+              service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+          
+          # Enable metrics for monitoring
+          metrics:
+            enabled: true
+            serviceMonitor:
+              enabled: false  # Set to true if using Prometheus Operator
+          
+          # Pod annotations for Prometheus scraping
+          podAnnotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "10254"
+          
+          # Resource limits for production
+          resources:
+            requests:
+              cpu: 100m
+              memory: 90Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          
+          # Autoscaling
+          autoscaling:
+            enabled: true
+            minReplicas: 2
+            maxReplicas: 10
+            targetCPUUtilizationPercentage: 80
+            targetMemoryUtilizationPercentage: 80
+          
+          # Additional configurations
+          config:
+            # Increase body size for file uploads
+            proxy-body-size: "10m"
+            # WebSocket support
+            proxy-read-timeout: "3600"
+            proxy-send-timeout: "3600"
+          
+          # Enable admission webhooks (recommended for production)
+          admissionWebhooks:
+            enabled: true
+            
+        # Default backend (optional - shows custom 404 page)
+        defaultBackend:
+          enabled: true
+          
+        # RBAC
+        rbac:
+          create: true
+          
+        # Service Account
+        serviceAccount:
+          create: true
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-nginx
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+    - RespectIgnoreDifferences=true
+  
+  # Health check configuration
+  ignoreDifferences:
+  - group: admissionregistration.k8s.io
+    kind: ValidatingAdmissionWebhook
+    jsonPointers:
+    - /webhooks/0/failurePolicy
