@@ -258,3 +258,26 @@ resource "null_resource" "setup_server" {
     instance_id = aws_instance.servers[count.index].id
   }
 }
+# provisioner to copy the src directory
+resource "null_resource" "copy_src_directory" {
+  count = var.instance_count
+
+  depends_on = [null_resource.setup_server]
+
+  provisioner "file" {
+    source      = "./src"           
+    destination = "/home/ubuntu/"
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(var.ssh_private_key_path)
+      host        = aws_instance.servers[count.index].public_ip
+      timeout     = "10m"
+    }
+  }
+
+  triggers = {
+    src_hash = sha256(join("", [for f in fileset("./src", "**") : filesha256("./src/${f}")]))
+  }
+}
