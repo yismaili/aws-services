@@ -1,0 +1,437 @@
+{
+  "id": null,
+  "title": "Alerting & Health Status",
+  "tags": ["alerts", "health", "prometheus", "alertmanager"],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Alert Status Overview",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "count(ALERTS{alertstate=\"firing\"})",
+          "legendFormat": "Firing Alerts",
+          "refId": "A"
+        },
+        {
+          "expr": "count(ALERTS{alertstate=\"pending\"})",
+          "legendFormat": "Pending Alerts",
+          "refId": "B"
+        },
+        {
+          "expr": "count(ALERTS)",
+          "legendFormat": "Total Alerts",
+          "refId": "C"
+        }
+      ],
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 3}
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Firing Alerts"},
+            "properties": [
+              {
+                "id": "color",
+                "value": {"mode": "fixed", "fixedColor": "red"}
+              }
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Pending Alerts"},
+            "properties": [
+              {
+                "id": "color",
+                "value": {"mode": "fixed", "fixedColor": "yellow"}
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Service Health Matrix",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "up{job=\"prometheus\"}",
+          "legendFormat": "Prometheus",
+          "refId": "A"
+        },
+        {
+          "expr": "up{job=\"node\"}",
+          "legendFormat": "Node Exporter",
+          "refId": "B"
+        },
+        {
+          "expr": "up{job=\"cadvisor\"}",
+          "legendFormat": "cAdvisor",
+          "refId": "C"
+        },
+        {
+          "expr": "up{job=\"alertmanager\"}",
+          "legendFormat": "AlertManager",
+          "refId": "D"
+        }
+      ],
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {"text": "DOWN", "color": "red"},
+                "1": {"text": "UP", "color": "green"}
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic"
+      }
+    },
+    {
+      "id": 3,
+      "title": "System Health Score",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "(avg(up) * 100)",
+          "legendFormat": "Health Score %",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 80},
+              {"color": "green", "value": 95}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Active Alerts",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 6},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "list",
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "alertstate"},
+            "properties": [
+              {"id": "displayName", "value": "State"},
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "firing": {"text": "🔥 FIRING", "color": "red"},
+                      "pending": {"text": "⚠️ PENDING", "color": "yellow"}
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "alertname"},
+            "properties": [
+              {"id": "displayName", "value": "Alert Name"}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "severity"},
+            "properties": [
+              {"id": "displayName", "value": "Severity"}
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Alert Timeline",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "count by (alertname) (ALERTS{alertstate=\"firing\"})",
+          "legendFormat": "{{alertname}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "gradientMode": "hue",
+            "spanNulls": false,
+            "insertNulls": false,
+            "showPoints": "always",
+            "pointSize": 5,
+            "stacking": {"mode": "normal", "group": "A"}
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Scrape Duration by Job",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "scrape_duration_seconds",
+          "legendFormat": "{{job}} - {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {"mode": "palette-classic"},
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 5}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Prometheus Targets Status",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "up",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "color-background",
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Value"},
+            "properties": [
+              {"id": "displayName", "value": "Status"},
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {"text": "DOWN", "color": "red"},
+                      "1": {"text": "UP", "color": "green"}
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "instance"},
+            "properties": [
+              {"id": "displayName", "value": "Instance"}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "job"},
+            "properties": [
+              {"id": "displayName", "value": "Job"}
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "AlertManager Status",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "alertmanager_alerts",
+          "legendFormat": "Active Alerts",
+          "refId": "A"
+        },
+        {
+          "expr": "alertmanager_notifications_total",
+          "legendFormat": "Notifications Sent",
+          "refId": "B"
+        },
+        {
+          "expr": "alertmanager_notification_requests_total",
+          "legendFormat": "Notification Requests",
+          "refId": "C"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"}
+        }
+      },
+      "options": {
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Rule Evaluation Duration",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "prometheus_rule_evaluation_duration_seconds",
+          "legendFormat": "{{rule_group}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 30},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {"mode": "palette-classic"}
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Configuration Reload Status",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "prometheus_config_last_reload_successful",
+          "legendFormat": "Config Reload Success",
+          "refId": "A"
+        },
+        {
+          "expr": "prometheus_config_last_reload_success_timestamp_seconds",
+          "legendFormat": "Last Reload Time",
+          "refId": "B"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 30},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {"text": "FAILED", "color": "red"},
+                "1": {"text": "SUCCESS", "color": "green"}
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Last Reload Time"},
+            "properties": [
+              {"id": "unit", "value": "dateTimeFromNow"}
+            ]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "horizontal"
+      }
+    }
+  ],
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "30s",
+  "schemaVersion": 36,
+  "version": 1
+}

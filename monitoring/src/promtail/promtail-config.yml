@@ -1,0 +1,110 @@
+server:
+  http_listen_port: 9080 # to check Promtail’s health/status
+  grpc_listen_port: 0 # gRPC is disabled.
+
+positions: # Promtail remembers the last line it read from a log file or container
+  filename: /tmp/positions.yaml # saves this info in it  ----> That way, if Promtail restarts, it won’t resend old logs.
+
+clients: # where to send logs
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs: # tell Promtail what logs to collect.
+  # Docker container logs
+  - job_name: docker-logs
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Only collect logs from containers with specific labels or names
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(app1|app2|my-lb).*'
+        action: keep
+      
+      # Set job label based on container name
+      - source_labels: ['__meta_docker_container_name']
+        target_label: job
+        regex: '/(.+)'
+        replacement: '${1}'
+      
+      # Set container name label
+      - source_labels: ['__meta_docker_container_name']
+        target_label: container_name
+        regex: '/(.+)'
+        replacement: '${1}'
+      
+      # Set image label
+      - source_labels: ['__meta_docker_container_image']
+        target_label: image
+      
+      # Set network label
+      - source_labels: ['__meta_docker_network_names']
+        target_label: network
+    
+    pipeline_stages:
+      # Parse JSON logs if your applications output JSON
+      - json:
+          expressions:
+            level: level
+            message: message
+            timestamp: timestamp
+      
+      # Set log level label
+      - labels:
+          level:
+      
+      # Parse timestamp if available
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      
+      # Add static labels
+      - static_labels:
+          environment: production
+          source: docker
+
+  # System logs (optional)
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          __path__: /var/log/syslog
+    
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\S+)\s+(?P<service>\S+):\s+(?P<message>.*)$'
+      
+      - timestamp:
+          source: timestamp
+          format: Jan _2 15:04:05
+      
+      - labels:
+          hostname:
+          service:
+
+  # Application specific logs (if your apps write to files)
+  - job_name: app-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: application-logs
+          __path__: /var/log/app/*.log
+    
+    pipeline_stages:
+      # Multiline support for stack traces
+      - multiline:
+          firstline: '^\d{4}-\d{2}-\d{2}'
+          max_wait_time: 3s
+      
+      # Parse common log formats
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(?P<level>\w+)\]\s+(?P<message>.*)$'
+      
+      - timestamp:
+          source: timestamp
+          format: 2006-01-02 15:04:05
+      
+      - labels:
+          level:

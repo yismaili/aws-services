@@ -1,0 +1,38 @@
+global: #This config allows AlertManager to send emails securely using your Gmail account
+  smtp_smarthost: 'smtp.gmail.com:587'  # SMTP server to send emails and port 
+  smtp_from: 'yismaili1337@gmail.com'
+  smtp_auth_username: 'yismaili1337@gmail.com'
+  smtp_auth_password: 'lslk khab hmhk vfiu'  
+  smtp_require_tls: true
+
+route: #Defines how alerts are grouped and sent.
+  group_by: ['alertname'] # group alerts by their name
+  group_wait: 10s # wait 10 seconds to group alerts
+  group_interval: 10s # wait 10 seconds between sending grouped alerts
+  repeat_interval: 1h # resend alerts every hour if they are still firing
+  receiver: 'email-notifications' # default receiver for alerts
+
+receivers: #Defines where to send the alerts.
+- name: 'email-notifications' # name of the receiver
+  email_configs:
+  - to: 'yismaili1337@gmail.com' # Destination email for alerts.
+    headers: 
+      subject: '[ALERT] {{ .GroupLabels.alertname }} - {{ .Status | toUpper }}'
+    html: |
+      <h3>Alert Details</h3>
+      {{ range .Alerts }}
+      <p><strong>Alert:</strong> {{ .Annotations.summary }}</p>
+      <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+      <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+      <p><strong>Instance:</strong> {{ .Labels.instance }}</p>
+      <p><strong>Status:</strong> {{ .Status }}</p>
+      <hr>
+      {{ end }}
+
+inhibit_rules: #Prevents sending duplicate or unnecessary alerts.
+- source_match: # if an alert matches these labels
+    severity: 'critical' # source alert with severity 'critical'
+  target_match: # target alert to be inhibited
+    severity: 'warning' # target alert with severity 'warning'
+  equal: ['alertname', 'instance'] # inhibit if both alerts have the same alertname and instance
+  

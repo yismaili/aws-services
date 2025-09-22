@@ -1,0 +1,67 @@
+groups:
+  - name: system_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 8% for more than 2 minutes. Current value: {{ $value }}%"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 8% for more than 2 minutes. Current value: {{ $value }}%"
+
+      - alert: DiskSpaceLow
+        expr: 100 - ((node_filesystem_avail_bytes{mountpoint="/",fstype!="rootfs"} * 100) / node_filesystem_size_bytes{mountpoint="/",fstype!="rootfs"}) > 9
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk space is running low"
+          description: "Disk usage is above 9%. Current value: {{ $value }}%"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service is down"
+          description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 1 minute"
+
+      - alert: ContainerKilled
+        expr: time() - container_last_seen > 6
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container killed"
+          description: "A container has disappeared. Instance: {{ $labels.instance }}"
+
+  - name: prometheus_alerts
+    rules:
+      - alert: PrometheusTargetMissing
+        expr: up == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus target missing"
+          description: "A Prometheus target has disappeared. An exporter might be crashed."
+
+      - alert: PrometheusConfigurationReloadFailure
+        expr: prometheus_config_last_reload_successful != 1
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus configuration reload failure"
+          description: "Prometheus configuration reload error"

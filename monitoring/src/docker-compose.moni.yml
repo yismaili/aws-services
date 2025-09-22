@@ -1,0 +1,178 @@
+services:
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+    labels:
+      org.label-schema.group: "monitoring"
+
+  # Loki - Log Aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    networks:
+      - monitoring
+    labels:
+      org.label-schema.group: "monitoring"
+
+  # Promtail - Log Shipper
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    restart: unless-stopped
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - monitoring
+      - app-network  # Connect to app network to collect app logs
+    labels:
+      org.label-schema.group: "monitoring"
+
+  # Grafana - Visualization Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/system-metrics.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - monitoring
+    labels:
+      org.label-schema.group: "monitoring"
+    depends_on:
+      - prometheus
+      - loki
+
+  # Node Exporter - System Metrics
+  nodeexporter:
+    image: prom/node-exporter:latest
+    container_name: nodeexporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - monitoring
+    labels:
+      org.label-schema.group: "monitoring"
+
+  # cAdvisor - Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    networks:
+      - monitoring
+    labels:
+      org.label-schema.group: "monitoring"
+    privileged: true
+
+  # AlertManager - Alert Handling
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    environment:
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - ALERT_EMAIL=${ALERT_EMAIL}
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    networks:
+      - monitoring
+    # Jaeger - Distributed Tracing  
+  jaeger:
+      image: jaegertracing/all-in-one:latest
+      container_name: jaeger
+      restart: unless-stopped
+      ports:
+        - "16686:16686"  # Jaeger UI
+        - "14250:14250"  # gRPC
+        - "14268:14268"  # HTTP
+        - "6831:6831/udp"  # UDP
+        - "6832:6832/udp"  # UDP
+      environment:
+        - COLLECTOR_OTLP_ENABLED=true
+        - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      networks:
+        - monitoring
+        - app-network  # Connect to app network
+      labels:
+        org.label-schema.group: "monitoring"
+networks:
+  monitoring:
+    driver: bridge
+  app-network:
+    external: true  # Reference the external app network
+    name: src_app-network
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+  alertmanager_data: {}
+  loki_data: {}
