@@ -30,20 +30,20 @@ output "instance_info" {
   value = {
     for i, instance in aws_instance.servers :
     instance.tags.Name => {
-      id              = instance.id
-      name            = instance.tags.Name
-      public_ip       = instance.public_ip
-      private_ip      = instance.private_ip
-      public_dns      = instance.public_dns
+      id                = instance.id
+      name              = instance.tags.Name
+      public_ip         = instance.public_ip
+      private_ip        = instance.private_ip
+      public_dns        = instance.public_dns
       availability_zone = instance.availability_zone
-      instance_type   = instance.instance_type
-      ami             = instance.ami
-      state           = instance.instance_state
-      vpc_id          = instance.vpc_security_group_ids
-      subnet_id       = instance.subnet_id
-      key_name        = instance.key_name
-      monitoring      = instance.monitoring
-      tags            = instance.tags
+      instance_type     = instance.instance_type
+      ami               = instance.ami
+      state             = instance.instance_state
+      vpc_id            = instance.vpc_security_group_ids
+      subnet_id         = instance.subnet_id
+      key_name          = instance.key_name
+      monitoring        = instance.monitoring
+      tags              = instance.tags
     }
   }
 }
@@ -52,19 +52,27 @@ output "instance_info" {
 output "vpc_info" {
   description = "VPC information"
   value = var.create_vpc ? {
-    vpc_id     = aws_vpc.main[0].id
-    vpc_cidr   = aws_vpc.main[0].cidr_block
-    subnet_id  = aws_subnet.main[0].id
-    igw_id     = aws_internet_gateway.main[0].id
+    vpc_id    = aws_vpc.main[0].id
+    vpc_cidr  = aws_vpc.main[0].cidr_block
+    subnet_id = aws_subnet.main[0].id
+    igw_id    = aws_internet_gateway.main[0].id
   } : null
 }
 
-# Security group information
+# Security group information with exposed ports
 output "security_group_info" {
-  description = "Security group information"
+  description = "Security group information and exposed ports"
   value = {
-    id   = aws_security_group.server_sg.id
-    name = aws_security_group.server_sg.name
+    id            = aws_security_group.server_sg.id
+    name          = aws_security_group.server_sg.name
+    exposed_ports = {
+      for rule in local.all_exposed_ports :
+      "${rule.service}-${rule.port}" => {
+        port     = rule.port
+        protocol = rule.protocol
+        service  = rule.service
+      }
+    }
   }
 }
 
@@ -75,6 +83,20 @@ output "ssh_connections" {
     for instance in aws_instance.servers :
     "ssh ubuntu@${instance.public_ip}"
   ]
+}
+
+# Monitoring dashboard URLs
+output "monitoring_urls" {
+  description = "URLs for accessing monitoring services"
+  value = var.instance_count > 0 ? {
+    prometheus   = "http://${aws_instance.servers[0].public_ip}:9090"
+    grafana      = "http://${aws_instance.servers[0].public_ip}:3000"
+    alertmanager = "http://${aws_instance.servers[0].public_ip}:9093"
+    jaeger       = "http://${aws_instance.servers[0].public_ip}:16686"
+    nodeexporter = "http://${aws_instance.servers[0].public_ip}:9100"
+    cadvisor     = "http://${aws_instance.servers[0].public_ip}:8080"
+    loki         = "http://${aws_instance.servers[0].public_ip}:3100"
+  } : {}
 }
 
 # Key pair information
