@@ -29,7 +29,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "Name of the project (used for naming resources)"
   type        = string
-  default     = "vps"
+  default     = "vps-3tier"
   
   validation {
     condition     = can(regex("^[a-z0-9-]+$", var.project_name))
@@ -60,21 +60,10 @@ variable "ssh_private_key_path" {
   default     = "~/.ssh/id_rsa"
 }
 
-variable "instance_count" {
-  description = "Number of EC2 instances to create"
-  type        = number
-  default     = 1
-  
-  validation {
-    condition     = var.instance_count >= 1 && var.instance_count <= 10
-    error_message = "Instance count must be between 1 and 10."
-  }
-}
-
 variable "instance_type" {
-  description = "EC2 instance type"
+  description = "EC2 instance type for all instances"
   type        = string
-  default     = "t3.large"
+  default     = "t3.small"
   
   validation {
     condition = contains([
@@ -87,16 +76,10 @@ variable "instance_type" {
   }
 }
 
-variable "instance_names" {
-  description = "List of instance names"
-  type        = list(string)
-  default     = ["scanner-app"]
-}
-
 variable "root_volume_size" {
   description = "Size of the root EBS volume in GB"
   type        = number
-  default     = 20
+  default     = 25
   
   validation {
     condition     = var.root_volume_size >= 8 && var.root_volume_size <= 100
@@ -116,7 +99,6 @@ variable "enable_termination_protection" {
   default     = false
 }
 
-# Docker configuration variables
 variable "docker_compose_version" {
   description = "Version of Docker Compose to install (empty for latest)"
   type        = string
@@ -127,13 +109,6 @@ variable "install_additional_tools" {
   description = "Install additional development tools (git, curl, unzip, etc.)"
   type        = bool
   default     = true
-}
-
-# Networking variables
-variable "create_vpc" {
-  description = "Create a VPC for the instances"
-  type        = bool
-  default     = false
 }
 
 variable "vpc_ip_range" {
@@ -147,9 +122,8 @@ variable "vpc_ip_range" {
   }
 }
 
-# Tags for resources
 variable "additional_tags" {
   description = "Additional tags to apply to all resources"
   type        = list(string)
-  default     = ["docker", "docker-compose"]
+  default     = ["docker", "docker-compose", "3-tier"]
 }

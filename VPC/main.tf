@@ -14,10 +14,10 @@ provider "aws" {
   secret_key = var.aws_secret_key
 }
 
-# Get the latest Ubuntu AMI (Amazon Machine Image) we use it to automatically selects the latest Ubuntu AMI,
+# Get the latest Ubuntu AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
+  owners      = ["099720109477"]
 
   filter {
     name   = "name"
@@ -26,14 +26,17 @@ data "aws_ami" "ubuntu" {
 
   filter {
     name   = "virtualization-type"
-    values = ["hvm"] #hardware virtual machine
+    values = ["hvm"]
   }
 }
 
-# Create VPC if specified
-resource "aws_vpc" "main" {
-  count = var.create_vpc ? 1 : 0
+# Get available AZs
+data "aws_availability_zones" "available" {
+  state = "available"
+}
 
+# Create VPC
+resource "aws_vpc" "main" {
   cidr_block           = var.vpc_ip_range
   enable_dns_hostnames = true
   enable_dns_support   = true
@@ -47,9 +50,7 @@ resource "aws_vpc" "main" {
 
 # Create Internet Gateway
 resource "aws_internet_gateway" "main" {
-  count = var.create_vpc ? 1 : 0
-
-  vpc_id = aws_vpc.main[0].id
+  vpc_id = aws_vpc.main.id
 
   tags = {
     Name        = "${var.project_name}-igw"
@@ -58,57 +59,237 @@ resource "aws_internet_gateway" "main" {
   }
 }
 
-# Create subnet
-resource "aws_subnet" "main" {
-  count = var.create_vpc ? 1 : 0
+# Create Elastic IP for NAT Gateway
+resource "aws_eip" "nat" {
+  domain = "vpc"
+  depends_on = [aws_internet_gateway.main]
 
-  vpc_id                  = aws_vpc.main[0].id
-  cidr_block              = cidrsubnet(var.vpc_ip_range, 8, 1)
+  tags = {
+    Name        = "${var.project_name}-nat-eip"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# Create Public Subnet for Frontend
+resource "aws_subnet" "public" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet(var.vpc_ip_range, 8, 1) # 10.0.1.0/24
   availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
 
   tags = {
-    Name        = "${var.project_name}-subnet"
+    Name        = "${var.project_name}-public-subnet"
+    Environment = var.environment
+    Project     = var.project_name
+    Type        = "Public"
+  }
+}
+
+# Create Private Subnet for Backend
+resource "aws_subnet" "private_backend" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = cidrsubnet(var.vpc_ip_range, 8, 2) # 10.0.2.0/24
+  availability_zone = data.aws_availability_zones.available.names[0]
+
+  tags = {
+    Name        = "${var.project_name}-private-backend-subnet"
+    Environment = var.environment
+    Project     = var.project_name
+    Type        = "Private"
+    Tier        = "Backend"
+  }
+}
+
+# Create Private Subnet for Database
+resource "aws_subnet" "private_database" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = cidrsubnet(var.vpc_ip_range, 8, 3) # 10.0.3.0/24
+  availability_zone = data.aws_availability_zones.available.names[1]
+
+  tags = {
+    Name        = "${var.project_name}-private-database-subnet"
+    Environment = var.environment
+    Project     = var.project_name
+    Type        = "Private"
+    Tier        = "Database"
+  }
+}
+
+# Create NAT Gateway in Public Subnet
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public.id
+  depends_on    = [aws_internet_gateway.main]
+
+  tags = {
+    Name        = "${var.project_name}-nat-gateway"
     Environment = var.environment
     Project     = var.project_name
   }
 }
 
-# Get available AZs
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
-# Create route table
-resource "aws_route_table" "main" {
-  count = var.create_vpc ? 1 : 0
-
-  vpc_id = aws_vpc.main[0].id
+# Create Route Table for Public Subnet
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main[0].id
+    gateway_id = aws_internet_gateway.main.id
   }
 
   tags = {
-    Name        = "${var.project_name}-rt"
+    Name        = "${var.project_name}-public-rt"
+    Environment = var.environment
+    Project     = var.project_name
+    Type        = "Public"
+  }
+}
+
+# Create Route Table for Private Subnets
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
+
+  tags = {
+    Name        = "${var.project_name}-private-rt"
+    Environment = var.environment
+    Project     = var.project_name
+    Type        = "Private"
+  }
+}
+
+# Associate Public Route Table with Public Subnet
+resource "aws_route_table_association" "public" {
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
+}
+
+# Associate Private Route Table with Backend Subnet
+resource "aws_route_table_association" "private_backend" {
+  subnet_id      = aws_subnet.private_backend.id
+  route_table_id = aws_route_table.private.id
+}
+
+# Associate Private Route Table with Database Subnet
+resource "aws_route_table_association" "private_database" {
+  subnet_id      = aws_subnet.private_database.id
+  route_table_id = aws_route_table.private.id
+}
+
+# Network ACL for Public Subnet (Frontend)
+resource "aws_network_acl" "public" {
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = [aws_subnet.public.id]
+
+  # Allow HTTP inbound
+  ingress {
+    rule_no    = 100
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 80
+    to_port    = 80
+  }
+
+  # Allow HTTPS inbound
+  ingress {
+    rule_no    = 110
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 443
+    to_port    = 443
+  }
+
+  # Allow SSH inbound
+  ingress {
+    rule_no    = 120
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 22
+    to_port    = 22
+  }
+
+  # Allow ephemeral ports inbound
+  ingress {
+    rule_no    = 130
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 1024
+    to_port    = 65535
+  }
+
+  # Allow all outbound traffic
+  egress {
+    rule_no    = 100
+    protocol   = "-1"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 0
+    to_port    = 0
+  }
+
+  tags = {
+    Name        = "${var.project_name}-public-nacl"
     Environment = var.environment
     Project     = var.project_name
   }
 }
 
-# Associate route table with subnet
-resource "aws_route_table_association" "main" {
-  count = var.create_vpc ? 1 : 0
+# Network ACL for Private Subnets (Backend & Database)
+resource "aws_network_acl" "private" {
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = [aws_subnet.private_backend.id, aws_subnet.private_database.id]
 
-  subnet_id      = aws_subnet.main[0].id
-  route_table_id = aws_route_table.main[0].id
+  # Allow traffic from VPC
+  ingress {
+    rule_no    = 100
+    protocol   = "-1"
+    action     = "allow"
+    cidr_block = var.vpc_ip_range
+    from_port  = 0
+    to_port    = 0
+  }
+
+  # Allow ephemeral ports from internet (for responses)
+  ingress {
+    rule_no    = 110
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 1024
+    to_port    = 65535
+  }
+
+  # Allow all outbound traffic
+  egress {
+    rule_no    = 100
+    protocol   = "-1"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 0
+    to_port    = 0
+  }
+
+  tags = {
+    Name        = "${var.project_name}-private-nacl"
+    Environment = var.environment
+    Project     = var.project_name
+  }
 }
 
-# Create security group
-resource "aws_security_group" "server_sg" {
-  name_prefix = "${var.project_name}-sg"
-  vpc_id      = var.create_vpc ? aws_vpc.main[0].id : null
+# Security Group for Frontend (Public Subnet)
+resource "aws_security_group" "frontend_sg" {
+  name_prefix = "${var.project_name}-frontend-sg"
+  vpc_id      = aws_vpc.main.id
+  description = "Security group for frontend instances"
 
   # SSH access
   ingress {
@@ -137,13 +318,52 @@ resource "aws_security_group" "server_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Docker daemon
-  ingress {
-    description = "Docker"
-    from_port   = 2376
-    to_port     = 2376
-    protocol    = "tcp"
+  # All outbound traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${var.project_name}-frontend-sg"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# Security Group for Backend (Private Subnet)
+resource "aws_security_group" "backend_sg" {
+  name_prefix = "${var.project_name}-backend-sg"
+  vpc_id      = aws_vpc.main.id
+  description = "Security group for backend instances"
+
+  # SSH access from public subnet
+  ingress {
+    description     = "SSH from Frontend"
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.frontend_sg.id]
+  }
+
+  # Backend API access from frontend
+  ingress {
+    description     = "Backend API"
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.frontend_sg.id]
+  }
+
+  # Docker daemon access from frontend
+  ingress {
+    description     = "Docker"
+    from_port       = 2376
+    to_port         = 2376
+    protocol        = "tcp"
+    security_groups = [aws_security_group.frontend_sg.id]
   }
 
   # All outbound traffic
@@ -155,7 +375,73 @@ resource "aws_security_group" "server_sg" {
   }
 
   tags = {
-    Name        = "${var.project_name}-sg"
+    Name        = "${var.project_name}-backend-sg"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# Security Group for Database (Private Subnet)
+resource "aws_security_group" "database_sg" {
+  name_prefix = "${var.project_name}-database-sg"
+  vpc_id      = aws_vpc.main.id
+  description = "Security group for database instances"
+
+  # SSH access from frontend
+  ingress {
+    description     = "SSH from Frontend"
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.frontend_sg.id]
+  }
+
+  # MySQL/MariaDB access from backend
+  ingress {
+    description     = "MySQL/MariaDB"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.backend_sg.id]
+  }
+
+  # PostgreSQL access from backend
+  ingress {
+    description     = "PostgreSQL"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.backend_sg.id]
+  }
+
+  # MongoDB access from backend
+  ingress {
+    description     = "MongoDB"
+    from_port       = 27017
+    to_port         = 27017
+    protocol        = "tcp"
+    security_groups = [aws_security_group.backend_sg.id]
+  }
+
+  # Redis access from backend
+  ingress {
+    description     = "Redis"
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [aws_security_group.backend_sg.id]
+  }
+
+  # All outbound traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${var.project_name}-database-sg"
     Environment = var.environment
     Project     = var.project_name
   }
@@ -173,83 +459,120 @@ resource "aws_key_pair" "main" {
   }
 }
 
-# Create multiple EC2 instances
-resource "aws_instance" "servers" {
-  count = var.instance_count
-  ami           = data.aws_ami.ubuntu.id
-  
-  instance_type = var.instance_type
-  key_name = aws_key_pair.main.key_name
-  vpc_security_group_ids = [aws_security_group.server_sg.id]
-  subnet_id = var.create_vpc ? aws_subnet.main[0].id : null
+# Frontend Instance (Public Subnet)
+resource "aws_instance" "frontend" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  key_name               = aws_key_pair.main.key_name
+  vpc_security_group_ids = [aws_security_group.frontend_sg.id]
+  subnet_id              = aws_subnet.public.id
   disable_api_termination = var.enable_termination_protection
-  monitoring = var.enable_detailed_monitoring
+  monitoring             = var.enable_detailed_monitoring
 
   root_block_device {
-    volume_type           = "gp3"               
-    volume_size           = var.root_volume_size 
-    delete_on_termination = true                
-    encrypted             = true                 #
+    volume_type           = "gp3"
+    volume_size           = var.root_volume_size
+    delete_on_termination = true
+    encrypted             = true
   }
 
-  # Tags for identification
   tags = merge({
-    Name        = var.instance_names[count.index] 
-    Environment = var.environment                 
-    Project     = var.project_name                
-    Docker      = "true"                          
+    Name        = "${var.project_name}-frontend"
+    Environment = var.environment
+    Project     = var.project_name
+    Tier        = "Frontend"
+    Docker      = "true"
   }, {
-    # Add extra tags, with values set to "true"
     for tag in var.additional_tags :
     tag => "true"
   })
 }
 
-# Setup server with Docker
-resource "null_resource" "setup_server" {
-  count = var.instance_count
+# Backend Instance (Private Subnet)
+resource "aws_instance" "backend" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  key_name               = aws_key_pair.main.key_name
+  vpc_security_group_ids = [aws_security_group.backend_sg.id]
+  subnet_id              = aws_subnet.private_backend.id
+  disable_api_termination = var.enable_termination_protection
+  monitoring             = var.enable_detailed_monitoring
 
-  depends_on = [aws_instance.servers]
+  root_block_device {
+    volume_type           = "gp3"
+    volume_size           = var.root_volume_size
+    delete_on_termination = true
+    encrypted             = true
+  }
+
+  tags = merge({
+    Name        = "${var.project_name}-backend"
+    Environment = var.environment
+    Project     = var.project_name
+    Tier        = "Backend"
+    Docker      = "true"
+  }, {
+    for tag in var.additional_tags :
+    tag => "true"
+  })
+}
+
+# Database Instance (Private Subnet)
+resource "aws_instance" "database" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  key_name               = aws_key_pair.main.key_name
+  vpc_security_group_ids = [aws_security_group.database_sg.id]
+  subnet_id              = aws_subnet.private_database.id
+  disable_api_termination = var.enable_termination_protection
+  monitoring             = var.enable_detailed_monitoring
+
+  root_block_device {
+    volume_type           = "gp3"
+    volume_size           = var.root_volume_size
+    delete_on_termination = true
+    encrypted             = true
+  }
+
+  tags = merge({
+    Name        = "${var.project_name}-database"
+    Environment = var.environment
+    Project     = var.project_name
+    Tier        = "Database"
+    Docker      = "true"
+  }, {
+    for tag in var.additional_tags :
+    tag => "true"
+  })
+}
+
+# Setup Frontend Server with Docker
+resource "null_resource" "setup_frontend" {
+  depends_on = [aws_instance.frontend]
 
   provisioner "remote-exec" {
     inline = [
-      # Wait for system to settle
       "echo 'Waiting for system initialization...'",
       "sleep 60",
-
-      # Update system
       "sudo apt-get update -y",
-      
-      # Clear any package management conflicts
       "sudo pkill -f 'apt|dpkg|unattended-upgrade' 2>/dev/null || true",
       "sleep 10",
       "sudo rm -f /var/lib/dpkg/lock* /var/cache/apt/archives/lock /var/lib/apt/lists/lock 2>/dev/null || true",
       "sudo dpkg --configure -a || true",
-
-      # Install Docker using official script
       "echo 'Installing Docker...'",
       "curl -fsSL https://get.docker.com -o get-docker.sh",
       "sudo sh get-docker.sh",
       "sudo systemctl enable docker",
       "sudo systemctl start docker",
       "sudo usermod -aG docker ubuntu",
-      "sudo usermod -aG docker root",
-      
-      # Verify Docker installation
       "docker --version",
-      "sudo systemctl is-active docker",
-
-      # Install Docker Compose
       "echo 'Installing Docker Compose...'",
       "mkdir -p ~/.docker/cli-plugins/",
       var.docker_compose_version != "" ? 
         "curl -SL https://github.com/docker/compose/releases/download/${var.docker_compose_version}/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose" :
         "curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose",
       "chmod +x ~/.docker/cli-plugins/docker-compose",
-      "sleep 10",
       "docker compose version",
-
-      # Install additional tools if specified
       var.install_additional_tools ? "sudo apt-get install -y git curl wget unzip htop tree vim" : "echo 'Skipping additional tools installation'"
     ]
 
@@ -257,12 +580,106 @@ resource "null_resource" "setup_server" {
       type        = "ssh"
       user        = "ubuntu"
       private_key = file(var.ssh_private_key_path)
-      host        = aws_instance.servers[count.index].public_ip
+      host        = aws_instance.frontend.public_ip
       timeout     = "10m"
     }
   }
 
   triggers = {
-    instance_id = aws_instance.servers[count.index].id
+    instance_id = aws_instance.frontend.id
+  }
+}
+
+# Setup Backend Server with Docker (via bastion/frontend)
+resource "null_resource" "setup_backend" {
+  depends_on = [aws_instance.backend, null_resource.setup_frontend]
+
+  provisioner "remote-exec" {
+    inline = [
+      "echo 'Waiting for system initialization...'",
+      "sleep 60",
+      "sudo apt-get update -y",
+      "sudo pkill -f 'apt|dpkg|unattended-upgrade' 2>/dev/null || true",
+      "sleep 10",
+      "sudo rm -f /var/lib/dpkg/lock* /var/cache/apt/archives/lock /var/lib/apt/lists/lock 2>/dev/null || true",
+      "sudo dpkg --configure -a || true",
+      "echo 'Installing Docker...'",
+      "curl -fsSL https://get.docker.com -o get-docker.sh",
+      "sudo sh get-docker.sh",
+      "sudo systemctl enable docker",
+      "sudo systemctl start docker",
+      "sudo usermod -aG docker ubuntu",
+      "docker --version",
+      "echo 'Installing Docker Compose...'",
+      "mkdir -p ~/.docker/cli-plugins/",
+      var.docker_compose_version != "" ? 
+        "curl -SL https://github.com/docker/compose/releases/download/${var.docker_compose_version}/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose" :
+        "curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose",
+      "chmod +x ~/.docker/cli-plugins/docker-compose",
+      "docker compose version",
+      var.install_additional_tools ? "sudo apt-get install -y git curl wget unzip htop tree vim" : "echo 'Skipping additional tools installation'"
+    ]
+
+    connection {
+      type                = "ssh"
+      user                = "ubuntu"
+      private_key         = file(var.ssh_private_key_path)
+      host                = aws_instance.backend.private_ip
+      timeout             = "10m"
+      bastion_host        = aws_instance.frontend.public_ip
+      bastion_user        = "ubuntu"
+      bastion_private_key = file(var.ssh_private_key_path)
+    }
+  }
+
+  triggers = {
+    instance_id = aws_instance.backend.id
+  }
+}
+
+# Setup Database Server with Docker (via bastion/frontend)
+resource "null_resource" "setup_database" {
+  depends_on = [aws_instance.database, null_resource.setup_frontend]
+
+  provisioner "remote-exec" {
+    inline = [
+      "echo 'Waiting for system initialization...'",
+      "sleep 60",
+      "sudo apt-get update -y",
+      "sudo pkill -f 'apt|dpkg|unattended-upgrade' 2>/dev/null || true",
+      "sleep 10",
+      "sudo rm -f /var/lib/dpkg/lock* /var/cache/apt/archives/lock /var/lib/apt/lists/lock 2>/dev/null || true",
+      "sudo dpkg --configure -a || true",
+      "echo 'Installing Docker...'",
+      "curl -fsSL https://get.docker.com -o get-docker.sh",
+      "sudo sh get-docker.sh",
+      "sudo systemctl enable docker",
+      "sudo systemctl start docker",
+      "sudo usermod -aG docker ubuntu",
+      "docker --version",
+      "echo 'Installing Docker Compose...'",
+      "mkdir -p ~/.docker/cli-plugins/",
+      var.docker_compose_version != "" ? 
+        "curl -SL https://github.com/docker/compose/releases/download/${var.docker_compose_version}/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose" :
+        "curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose",
+      "chmod +x ~/.docker/cli-plugins/docker-compose",
+      "docker compose version",
+      var.install_additional_tools ? "sudo apt-get install -y git curl wget unzip htop tree vim" : "echo 'Skipping additional tools installation'"
+    ]
+
+    connection {
+      type                = "ssh"
+      user                = "ubuntu"
+      private_key         = file(var.ssh_private_key_path)
+      host                = aws_instance.database.private_ip
+      timeout             = "10m"
+      bastion_host        = aws_instance.frontend.public_ip
+      bastion_user        = "ubuntu"
+      bastion_private_key = file(var.ssh_private_key_path)
+    }
+  }
+
+  triggers = {
+    instance_id = aws_instance.database.id
   }
 }
