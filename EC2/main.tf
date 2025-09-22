@@ -10,8 +10,6 @@ terraform {
 
 provider "aws" {
   region     = var.aws_region
-  # access_key = var.aws_access_key
-  # secret_key = var.aws_secret_key
 }
 
 # Get the latest Ubuntu AMI (Amazon Machine Image) we use it to automatically selects the latest Ubuntu AMI,
@@ -280,5 +278,29 @@ resource "null_resource" "setup_server" {
 
   triggers = {
     instance_id = aws_instance.servers[count.index].id
+  }
+}
+
+# provisioner to copy the src directory
+resource "null_resource" "copy_src_directory" {
+  count = var.instance_count
+
+  depends_on = [null_resource.setup_server]
+
+  provisioner "file" {
+    source      = "./src"           
+    destination = "/home/ubuntu/"
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(var.ssh_private_key_path)
+      host        = aws_instance.servers[count.index].public_ip
+      timeout     = "10m"
+    }
+  }
+
+  triggers = {
+    src_hash = sha256(join("", [for f in fileset("./src", "**") : filesha256("./src/${f}")]))
   }
 }
