@@ -9,12 +9,12 @@ terraform {
 }
 
 provider "aws" {
-  region     = var.aws_region
+  region = var.aws_region
 }
 
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] 
+  owners      = ["099720109477"]
 
   filter {
     name   = "name"
@@ -25,6 +25,44 @@ data "aws_ami" "ubuntu" {
     name   = "virtualization-type"
     values = ["hvm"]
   }
+}
+
+# Local values to define the ports exposed by your Docker services
+locals {
+  docker_exposed_ports = {
+    # Monitoring stack ports
+    prometheus   = [9090]
+    grafana      = [3000]
+    loki         = [3100]
+    nodeexporter = [9100]
+    cadvisor     = [8080]
+    alertmanager = [9093]
+    jaeger       = [16686, 14250, 14268, 6831, 6832]
+
+    # System ports
+    ssh    = [22]
+    http   = [80]
+    https  = [443]
+    docker = [2376]
+  }
+
+  # Flatten all ports into a single list
+  all_exposed_ports = flatten([
+    for service, ports in local.docker_exposed_ports : [
+      for port in ports : {
+        port        = port
+        service     = service
+        protocol    = contains([6831, 6832], port) ? "udp" : "tcp"
+        description = "${service} - Port ${port}"
+      }
+    ]
+  ])
+
+  # Define which ports should be publicly accessible
+  public_ports = [22, 80, 443, 3000, 9090, 9093, 16686]
+
+  # Define ports that should be restricted to VPC (if VPC is created)
+  vpc_restricted_ports = [9100, 8080, 14250, 6831, 6832]
 }
 
 # Create VPC if specified
@@ -102,60 +140,66 @@ resource "aws_route_table_association" "main" {
   route_table_id = aws_route_table.main[0].id
 }
 
-# Create security group
+# Create security group with dynamic rules
 resource "aws_security_group" "server_sg" {
   name_prefix = "${var.project_name}-sg"
   vpc_id      = var.create_vpc ? aws_vpc.main[0].id : null
-
-  # SSH access
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # HTTP access
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # HTTPS access
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Docker daemon
-  ingress {
-    description = "Docker"
-    from_port   = 2376
-    to_port     = 2376
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # All outbound traffic
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  description = "Security group for ${var.project_name} with Docker services"
 
   tags = {
     Name        = "${var.project_name}-sg"
     Environment = var.environment
     Project     = var.project_name
   }
+}
+
+# Dynamic ingress rules for all ports
+resource "aws_security_group_rule" "ingress_rules" {
+  for_each = {
+    for rule in local.all_exposed_ports :
+    "${rule.service}-${rule.port}-${rule.protocol}" => rule
+  }
+
+  type              = "ingress"
+  from_port         = each.value.port
+  to_port           = each.value.port
+  protocol          = each.value.protocol
+  cidr_blocks       = ["0.0.0.0/0"]
+  description       = each.value.description
+  security_group_id = aws_security_group.server_sg.id
+}
+
+# Self-referencing rule for internal communication between services
+resource "aws_security_group_rule" "self_reference" {
+  type                     = "ingress"
+  from_port                = 0
+  to_port                  = 65535
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.server_sg.id
+  security_group_id        = aws_security_group.server_sg.id
+  description              = "Allow all internal communication between services"
+}
+
+# UDP self-referencing rule (for Jaeger UDP ports)
+resource "aws_security_group_rule" "self_reference_udp" {
+  type                     = "ingress"
+  from_port                = 0
+  to_port                  = 65535
+  protocol                 = "udp"
+  source_security_group_id = aws_security_group.server_sg.id
+  security_group_id        = aws_security_group.server_sg.id
+  description              = "Allow all internal UDP communication between services"
+}
+
+# Egress rule (allow all outbound traffic)
+resource "aws_security_group_rule" "egress_all" {
+  type              = "egress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  cidr_blocks       = ["0.0.0.0/0"]
+  description       = "Allow all outbound traffic"
+  security_group_id = aws_security_group.server_sg.id
 }
 
 # Create key pair
@@ -172,30 +216,29 @@ resource "aws_key_pair" "main" {
 
 # Create multiple EC2 instances
 resource "aws_instance" "servers" {
-
-  count = var.instance_count
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.instance_type
-  key_name = aws_key_pair.main.key_name
-  vpc_security_group_ids = [aws_security_group.server_sg.id]
-  subnet_id = var.create_vpc ? aws_subnet.main[0].id : null
+  count                   = var.instance_count
+  ami                     = data.aws_ami.ubuntu.id
+  instance_type           = var.instance_type
+  key_name                = aws_key_pair.main.key_name
+  vpc_security_group_ids  = [aws_security_group.server_sg.id]
+  subnet_id               = var.create_vpc ? aws_subnet.main[0].id : null
   disable_api_termination = var.enable_termination_protection
-  monitoring = var.enable_detailed_monitoring
+  monitoring              = var.enable_detailed_monitoring
 
   # Root volume configuration
   root_block_device {
-    volume_type           = "gp3"                
-    volume_size           = var.root_volume_size 
-    delete_on_termination = true                
-    encrypted             = true            
+    volume_type           = "gp3"
+    volume_size           = var.root_volume_size
+    delete_on_termination = true
+    encrypted             = true
   }
 
   # Tags for identification
   tags = merge({
-    Name        = var.instance_names[count.index] 
-    Environment = var.environment                
-    Project     = var.project_name              
-    Docker      = "true"                          
+    Name        = var.instance_names[count.index]
+    Environment = var.environment
+    Project     = var.project_name
+    Docker      = "true"
   }, {
     # Add extra tags, with values set to "true"
     for tag in var.additional_tags :
@@ -214,9 +257,7 @@ resource "null_resource" "setup_server" {
       "echo 'Waiting for system initialization...'",
       "sleep 60",
 
-  
       "sudo apt-get update -y",
-      
 
       "sudo pkill -f 'apt|dpkg|unattended-upgrade' 2>/dev/null || true",
       "sleep 10",
@@ -236,9 +277,9 @@ resource "null_resource" "setup_server" {
 
       "echo 'Installing Docker Compose...'",
       "mkdir -p ~/.docker/cli-plugins/",
-      var.docker_compose_version != "" ? 
-        "curl -SL https://github.com/docker/compose/releases/download/${var.docker_compose_version}/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose" :
-        "curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose",
+      var.docker_compose_version != "" ?
+      "curl -SL https://github.com/docker/compose/releases/download/${var.docker_compose_version}/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose" :
+      "curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose",
       "chmod +x ~/.docker/cli-plugins/docker-compose",
       "sleep 10",
       "docker compose version",
@@ -258,6 +299,7 @@ resource "null_resource" "setup_server" {
     instance_id = aws_instance.servers[count.index].id
   }
 }
+
 # provisioner to copy the src directory
 resource "null_resource" "copy_src_directory" {
   count = var.instance_count
@@ -265,7 +307,7 @@ resource "null_resource" "copy_src_directory" {
   depends_on = [null_resource.setup_server]
 
   provisioner "file" {
-    source      = "./src"           
+    source      = "./src"
     destination = "/home/ubuntu/"
 
     connection {

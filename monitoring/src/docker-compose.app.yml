@@ -33,7 +33,7 @@ services:
     image: nginx:latest
     container_name: my-lb
     ports:
-      - "8081:80"
+      - "80:80"
     volumes:
       - ./conf/nginx-ip-routing.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
