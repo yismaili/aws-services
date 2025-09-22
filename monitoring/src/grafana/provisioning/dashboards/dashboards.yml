@@ -1,0 +1,49 @@
+apiVersion: 1
+
+providers:
+  # System Monitoring Dashboards
+  - name: 'system-monitoring'
+    orgId: 1
+    folder: 'System Monitoring'
+    folderUid: 'system-folder'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+
+  # Container Monitoring Dashboards  
+  - name: 'container-monitoring'
+    orgId: 1
+    folder: 'Container Monitoring'
+    folderUid: 'container-folder'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+  # Infrastructure & Health Dashboards
+  - name: 'infrastructure-health'
+    orgId: 1
+    folder: 'Infrastructure & Health'
+    folderUid: 'infra-folder'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+
+  # Performance Analysis Dashboards
+  - name: 'performance-analysis'
+    orgId: 1
+    folder: 'Performance Analysis'
+    folderUid: 'perf-folder'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

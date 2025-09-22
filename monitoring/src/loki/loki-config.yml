@@ -1,0 +1,56 @@
+
+# Loki is a log storage system (like a database for logs).
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100 # for access Loki’s REST API
+  grpc_listen_port: 9096 # Used for internal communication
+
+common:
+  path_prefix: /loki # Base folder where Loki stores data.
+  storage:
+    filesystem: # Logs are saved on the local disk.
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1  # Only 1 copy of data
+  ring: # How Loki nodes talk to each other.
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory # Uses memory instead of a real database for cluster state
+
+query_range: # to cach logs when loki run we can cach the logs  to makes repeated queries faster
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100 
+
+schema_config: # defines how logs are organized and indexed.
+  configs:
+    - from: 2020-10-24
+      store: boltdb-shipper # Loki uses BoltDB to index logs
+      object_store: filesystem # Chunks stored on local disk.
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config: # Tells Loki where to store indexes and logs.
+  boltdb_shipper:
+    active_index_directory: /loki/boltdb-shipper-active # Active index files.
+    cache_location: /loki/boltdb-shipper-cache # Temporary cached queries.
+    cache_ttl: 24h # Cache lives for 24 hours.
+  filesystem:
+    directory: /loki/chunks # Location for log chunks.
+
+limits_config: #Puts limits on logs Loki accepts.
+  reject_old_samples: true # Rejects logs that are too old.
+  reject_old_samples_max_age: 168h # 168 hours = 7 days. If log is older → reject.
+  allow_structured_metadata: false 
+
+ruler: # The ruler checks alerting rules
+  alertmanager_url: http://alertmanager:9093
+
+analytics: # Disables sending anonymous usage data to Grafana Labs.
+  reporting_enabled: false
