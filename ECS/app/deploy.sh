@@ -1,9 +1,8 @@
 #!/bin/bash
 
 AWS_REGION="us-east-1"
-PROJECT_NAME="ecs-hello-world"
+PROJECT_NAME="vps"
 ENVIRONMENT="dev"
-
 
 ECR_REPOSITORY_URL=$(terraform output -raw ecr_repository_url)
 ALB_DNS_NAME=$(terraform output -raw alb_dns_name)
@@ -22,11 +21,11 @@ docker tag ${PROJECT_NAME}:latest ${ECR_REPOSITORY_URL}:latest
 docker push ${ECR_REPOSITORY_URL}:latest
 
 #Update ECS service to use new image
-aws ecs update-service \
-    --cluster ${PROJECT_NAME}-${ENVIRONMENT}-cluster \
-    --service ${PROJECT_NAME}-${ENVIRONMENT}-service \
+ aws ecs update-service \
+    --cluster vps-dev-cluster \
+    --service vps-dev-service \
     --force-new-deployment \
-    --region ${AWS_REGION}
+    --region us-east-1
 
 echo -e "Deployment complete!${NC}"
 echo -e "Application URL: http://${ALB_DNS_NAME}${NC}"

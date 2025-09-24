@@ -30,7 +30,6 @@ data "aws_ami" "ubuntu" {
 # Local values to define the ports exposed by your Docker services
 locals {
   docker_exposed_ports = {
-    # Monitoring stack ports
     prometheus   = [9090]
     grafana      = [3000]
     loki         = [3100]
@@ -39,7 +38,6 @@ locals {
     alertmanager = [9093]
     jaeger       = [16686, 14250, 14268, 6831, 6832]
 
-    # System ports
     ssh    = [22]
     http   = [80]
     https  = [443]

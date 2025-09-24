@@ -2,7 +2,7 @@ global: #This config allows AlertManager to send emails securely using your Gmai
   smtp_smarthost: 'smtp.gmail.com:587'  # SMTP server to send emails and port 
   smtp_from: 'yismaili1337@gmail.com'
   smtp_auth_username: 'yismaili1337@gmail.com'
-  smtp_auth_password: 'lslk khab hmhk vfiu'  
+  smtp_auth_password: 'XXXXXXXXXXX'  
   smtp_require_tls: true
 
 route: #Defines how alerts are grouped and sent.
