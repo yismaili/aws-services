@@ -1,4 +1,4 @@
-resource "aws_iam_role" "ecs_task_execution" {
+resource "aws_iam_role" "ecs_task_execution" { #AWS services need roles to access other AWS resources.
   name = "${var.project_name}-${var.environment}-ecs-task-execution-role"
   
   assume_role_policy = jsonencode({
@@ -21,13 +21,13 @@ resource "aws_iam_role" "ecs_task_execution" {
 }
 
 # Attach AWS managed policy for ECS task execution
-resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
+resource "aws_iam_role_policy_attachment" "ecs_task_execution" { # This gives ECS permission to pull container images and send logs.
   role       = aws_iam_role.ecs_task_execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 # Additional policy for ECR access
-resource "aws_iam_role_policy" "ecs_task_execution_ecr" {
+resource "aws_iam_role_policy" "ecs_task_execution_ecr" { # This policy allows ECS to pull images from ECR (Elastic Container Registry).
   name = "${var.project_name}-${var.environment}-ecr-policy"
   role = aws_iam_role.ecs_task_execution.id
   
@@ -49,7 +49,7 @@ resource "aws_iam_role_policy" "ecs_task_execution_ecr" {
 }
 
 # ECS Task Role
-resource "aws_iam_role" "ecs_task" {
+resource "aws_iam_role" "ecs_task" { # ECS tasks will use this role at runtime.
   name = "${var.project_name}-${var.environment}-ecs-task-role"
   
   assume_role_policy = jsonencode({
@@ -72,7 +72,7 @@ resource "aws_iam_role" "ecs_task" {
 }
 
 # CloudWatch Logs policy for ECS Task
-resource "aws_iam_role_policy" "ecs_task_logs" {
+resource "aws_iam_role_policy" "ecs_task_logs" { #This lets ECS tasks send logs to CloudWatch Logs.
   name = "${var.project_name}-${var.environment}-task-logs-policy"
   role = aws_iam_role.ecs_task.id
   
