@@ -185,3 +185,13 @@ output "estimated_monthly_cost" {
     total_note = "This is an estimate. Check AWS pricing for accurate costs."
   }
 }
+
+output "frontend_public_ip" {
+  value = aws_instance.frontend.public_ip
+}
+output "backend_private_ip" {
+  value = aws_instance.backend.private_ip
+}
+output "database_private_ip" {
+  value = aws_instance.database.private_ip
+}
