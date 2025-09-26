@@ -1,5 +1,4 @@
-# Create IAM role for Lambda
-resource "aws_iam_role" "lambda_role" {
+resource "aws_iam_role" "lambda_role" { # Create IAM role for Lambda
   name = "${var.function_name}-role"
 
   assume_role_policy = jsonencode({
@@ -56,7 +55,7 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
 }
 
 # Create API Gateway to trigger Lambda
-resource "aws_api_gateway_rest_api" "lambda_api" {
+resource "aws_api_gateway_rest_api" "lambda_api" { # Creates a REST API in API Gateway.
   name        = "${var.function_name}-api"
   description = "API Gateway for Lambda function"
 }
@@ -92,7 +91,7 @@ resource "aws_api_gateway_deployment" "lambda_deployment" {
   rest_api_id = aws_api_gateway_rest_api.lambda_api.id
 }
 
-resource "aws_api_gateway_stage" "lambda_stage" {
+resource "aws_api_gateway_stage" "lambda_stage" { # creates a stage named prod
   deployment_id = aws_api_gateway_deployment.lambda_deployment.id
   rest_api_id   = aws_api_gateway_rest_api.lambda_api.id
   stage_name    = "prod"
