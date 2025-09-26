@@ -683,3 +683,4 @@ resource "null_resource" "setup_database" {
     instance_id = aws_instance.database.id
   }
 }
+

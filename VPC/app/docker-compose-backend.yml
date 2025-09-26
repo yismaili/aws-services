@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  backend:
+    image: node:18-alpine
+    container_name: backend
+    working_dir: /app
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_HOST=DATABASE_PRIVATE_IP
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=transcendence
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - OAUTH_GOOGLE_REDIRECT_URL=${OAUTH_GOOGLE_REDIRECT_URL}
+      - INTRA_CLIENT_ID=${INTRA_CLIENT_ID}
+      - INTRA_CLIENT_SECRET=${INTRA_CLIENT_SECRET}
+      - OAUTH_INTRA_REDIRECT_URL=${OAUTH_INTRA_REDIRECT_URL}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+    ports:
+      - "3001:3001"
+      - "8080:8080"
+    volumes:
+      - ./app:/app
+      - /app/node_modules
+    command: npm run start:prod
+    restart: unless-stopped
+    networks:
+      - backend-net
+
+networks:
+  backend-net:
+    driver: bridge
