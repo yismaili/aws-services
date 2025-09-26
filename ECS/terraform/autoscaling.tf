@@ -1,4 +1,4 @@
-resource "aws_appautoscaling_target" "ecs" {
+resource "aws_appautoscaling_target" "ecs" { # how many ECS tasks your service can run.
   max_capacity       = var.max_capacity
   min_capacity       = var.min_capacity
   resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.app.name}"
@@ -21,9 +21,9 @@ resource "aws_appautoscaling_policy" "ecs_cpu" {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
     
-    target_value       = 70.0
-    scale_in_cooldown  = 300
-    scale_out_cooldown = 60
+    target_value       = 70.0 # ECS tasks is higher than 70%, it will add more containers
+    scale_in_cooldown  = 300 # wait 5 minutes before scaling down
+    scale_out_cooldown = 60 # wait 1 minute before scaling up.
   }
   
   depends_on = [aws_appautoscaling_target.ecs]
@@ -42,7 +42,7 @@ resource "aws_appautoscaling_policy" "ecs_memory" {
       predefined_metric_type = "ECSServiceAverageMemoryUtilization"
     }
     
-    target_value       = 80.0
+    target_value       = 80.0 # higher than 80%, add more containers
     scale_in_cooldown  = 300
     scale_out_cooldown = 60
   }
