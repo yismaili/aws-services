@@ -104,6 +104,8 @@ aws iam delete-user --user-name admin1
 aws iam delete-user --user-name auditor1
 
 
-# Delete groups aws iam delete-group --group-name Developers
+# Delete groups 
+aws iam delete-group --group-name Developers
+
 aws iam delete-group --group-name Admins
 aws iam delete-group --group-name Auditors
