@@ -15,7 +15,7 @@ provider "aws" {
 # Get the latest Ubuntu AMI (Amazon Machine Image) we use it to automatically selects the latest Ubuntu AMI,
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
+  owners      = ["099720109477"] 
 
   filter {
     name   = "name"

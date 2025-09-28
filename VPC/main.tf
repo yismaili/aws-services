@@ -86,11 +86,11 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Create Private Subnet for Backend
+# Create Private Subnet for Backend (SAME AZ as public)
 resource "aws_subnet" "private_backend" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = cidrsubnet(var.vpc_ip_range, 8, 2) # 10.0.2.0/24
-  availability_zone = data.aws_availability_zones.available.names[0]
+  availability_zone = data.aws_availability_zones.available.names[0]  # Same AZ
 
   tags = {
     Name        = "${var.project_name}-private-backend-subnet"
@@ -101,11 +101,11 @@ resource "aws_subnet" "private_backend" {
   }
 }
 
-# Create Private Subnet for Database
+# Create Private Subnet for Database (SAME AZ as others)
 resource "aws_subnet" "private_database" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = cidrsubnet(var.vpc_ip_range, 8, 3) # 10.0.3.0/24
-  availability_zone = data.aws_availability_zones.available.names[1]
+  availability_zone = data.aws_availability_zones.available.names[0]  # Same AZ as others
 
   tags = {
     Name        = "${var.project_name}-private-database-subnet"
@@ -291,7 +291,7 @@ resource "aws_security_group" "frontend_sg" {
   vpc_id      = aws_vpc.main.id
   description = "Security group for frontend instances"
 
-  # SSH access
+  # SSH access (restrict this in production!)
   ingress {
     description = "SSH"
     from_port   = 22
@@ -300,20 +300,11 @@ resource "aws_security_group" "frontend_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # HTTP access
+  # Frontend app access (port 3000)
   ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # HTTPS access
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
+    description = "Frontend App"
+    from_port   = 3000
+    to_port     = 3000
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -339,7 +330,7 @@ resource "aws_security_group" "backend_sg" {
   vpc_id      = aws_vpc.main.id
   description = "Security group for backend instances"
 
-  # SSH access from public subnet
+  # SSH access from frontend
   ingress {
     description     = "SSH from Frontend"
     from_port       = 22
@@ -348,20 +339,11 @@ resource "aws_security_group" "backend_sg" {
     security_groups = [aws_security_group.frontend_sg.id]
   }
 
-  # Backend API access from frontend
+  # Backend API access (port 3001) from frontend
   ingress {
     description     = "Backend API"
-    from_port       = 8080
-    to_port         = 8080
-    protocol        = "tcp"
-    security_groups = [aws_security_group.frontend_sg.id]
-  }
-
-  # Docker daemon access from frontend
-  ingress {
-    description     = "Docker"
-    from_port       = 2376
-    to_port         = 2376
+    from_port       = 3001
+    to_port         = 3001
     protocol        = "tcp"
     security_groups = [aws_security_group.frontend_sg.id]
   }
@@ -387,7 +369,7 @@ resource "aws_security_group" "database_sg" {
   vpc_id      = aws_vpc.main.id
   description = "Security group for database instances"
 
-  # SSH access from frontend
+  # SSH access from frontend (for bastion)
   ingress {
     description     = "SSH from Frontend"
     from_port       = 22
@@ -396,38 +378,11 @@ resource "aws_security_group" "database_sg" {
     security_groups = [aws_security_group.frontend_sg.id]
   }
 
-  # MySQL/MariaDB access from backend
-  ingress {
-    description     = "MySQL/MariaDB"
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.backend_sg.id]
-  }
-
-  # PostgreSQL access from backend
+  # Postgres access (5432) from backend
   ingress {
     description     = "PostgreSQL"
     from_port       = 5432
     to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.backend_sg.id]
-  }
-
-  # MongoDB access from backend
-  ingress {
-    description     = "MongoDB"
-    from_port       = 27017
-    to_port         = 27017
-    protocol        = "tcp"
-    security_groups = [aws_security_group.backend_sg.id]
-  }
-
-  # Redis access from backend
-  ingress {
-    description     = "Redis"
-    from_port       = 6379
-    to_port         = 6379
     protocol        = "tcp"
     security_groups = [aws_security_group.backend_sg.id]
   }
@@ -672,7 +627,7 @@ resource "null_resource" "setup_database" {
       user                = "ubuntu"
       private_key         = file(var.ssh_private_key_path)
       host                = aws_instance.database.private_ip
-      timeout             = "10m"
+      timeout             = "15m"  # Increased timeout
       bastion_host        = aws_instance.frontend.public_ip
       bastion_user        = "ubuntu"
       bastion_private_key = file(var.ssh_private_key_path)
@@ -683,4 +638,3 @@ resource "null_resource" "setup_database" {
     instance_id = aws_instance.database.id
   }
 }
-
