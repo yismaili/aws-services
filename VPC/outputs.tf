@@ -1,4 +1,4 @@
-# Instance Information
+
 output "frontend_instance_info" {
   description = "Frontend instance information"
   value = {
@@ -37,7 +37,7 @@ output "database_instance_info" {
   }
 }
 
-# Network Information
+
 output "vpc_info" {
   description = "VPC and subnet information"
   value = {
@@ -64,7 +64,7 @@ output "vpc_info" {
   }
 }
 
-# Security Group Information
+
 output "security_groups" {
   description = "Security group information"
   value = {
@@ -83,7 +83,6 @@ output "security_groups" {
   }
 }
 
-# Network ACL Information
 output "network_acls" {
   description = "Network ACL information"
   value = {
@@ -96,7 +95,7 @@ output "network_acls" {
   }
 }
 
-# Connection Information
+
 output "ssh_connections" {
   description = "SSH connection commands"
   value = {
@@ -106,7 +105,7 @@ output "ssh_connections" {
   }
 }
 
-# Route Table Information
+
 output "route_tables" {
   description = "Route table information"
   value = {
@@ -119,19 +118,19 @@ output "route_tables" {
   }
 }
 
-# Key pair information
+
 output "key_pair_name" {
   description = "Name of the created key pair"
   value       = aws_key_pair.main.key_name
 }
 
-# Region information
+
 output "aws_region" {
   description = "AWS region where resources were created"
   value       = var.aws_region
 }
 
-# Architecture Summary
+
 output "architecture_summary" {
   description = "Summary of the 3-tier architecture"
   value = {
@@ -159,7 +158,7 @@ output "architecture_summary" {
   }
 }
 
-# Cost estimation helper
+
 output "estimated_monthly_cost" {
   description = "Estimated monthly cost breakdown"
   value = {
