@@ -1,4 +1,4 @@
-# Basic instance information
+
 output "instance_ids" {
   description = "List of EC2 instance IDs"
   value       = aws_instance.servers[*].id
@@ -24,7 +24,6 @@ output "instance_public_dns" {
   value       = aws_instance.servers[*].public_dns
 }
 
-# Detailed instance information
 output "instance_info" {
   description = "Detailed information about all EC2 instances"
   value = {
@@ -48,7 +47,6 @@ output "instance_info" {
   }
 }
 
-# VPC information (if created)
 output "vpc_info" {
   description = "VPC information"
   value = var.create_vpc ? {
@@ -59,7 +57,6 @@ output "vpc_info" {
   } : null
 }
 
-# Security group information
 output "security_group_info" {
   description = "Security group information"
   value = {
@@ -68,7 +65,6 @@ output "security_group_info" {
   }
 }
 
-# SSH connection information
 output "ssh_connections" {
   description = "SSH connection commands for all instances"
   value = [
@@ -83,13 +79,13 @@ output "key_pair_name" {
   value       = aws_key_pair.main.key_name
 }
 
-# Region information
+
 output "aws_region" {
   description = "AWS region where resources were created"
   value       = var.aws_region
 }
 
-# Cost estimation helper
+
 output "estimated_monthly_cost" {
   description = "Estimated monthly cost in USD (approximate, based on instance type)"
   value = {

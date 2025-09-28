@@ -14,7 +14,7 @@ provider "aws" {
   secret_key = var.aws_secret_key
 }
 
-# Get the latest Ubuntu AMI
+
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"]
@@ -30,12 +30,10 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-# Get available AZs
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
-# Create VPC
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_ip_range
   enable_dns_hostnames = true
@@ -86,11 +84,11 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Create Private Subnet for Backend (SAME AZ as public)
+# Create Private Subnet 
 resource "aws_subnet" "private_backend" {
   vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_ip_range, 8, 2) # 10.0.2.0/24
-  availability_zone = data.aws_availability_zones.available.names[0]  # Same AZ
+  cidr_block        = cidrsubnet(var.vpc_ip_range, 8, 2) 
+  availability_zone = data.aws_availability_zones.available.names[0]  
 
   tags = {
     Name        = "${var.project_name}-private-backend-subnet"
@@ -116,7 +114,7 @@ resource "aws_subnet" "private_database" {
   }
 }
 
-# Create NAT Gateway in Public Subnet
+# create NAT Gateway in Public Subnet
 resource "aws_nat_gateway" "main" {
   allocation_id = aws_eip.nat.id
   subnet_id     = aws_subnet.public.id
@@ -129,7 +127,7 @@ resource "aws_nat_gateway" "main" {
   }
 }
 
-# Create Route Table for Public Subnet
+# create Route Table for Public Subnet
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -163,30 +161,30 @@ resource "aws_route_table" "private" {
   }
 }
 
-# Associate Public Route Table with Public Subnet
+# aaassociate Public Route Table with Public Subnet
 resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.public.id
 }
 
-# Associate Private Route Table with Backend Subnet
+#               associate Private Route Table with Backend Subnet
 resource "aws_route_table_association" "private_backend" {
   subnet_id      = aws_subnet.private_backend.id
   route_table_id = aws_route_table.private.id
 }
 
-# Associate Private Route Table with Database Subnet
+
 resource "aws_route_table_association" "private_database" {
   subnet_id      = aws_subnet.private_database.id
   route_table_id = aws_route_table.private.id
 }
 
-# Network ACL for Public Subnet (Frontend)
+# Network ACL for Public Subnet
 resource "aws_network_acl" "public" {
   vpc_id     = aws_vpc.main.id
   subnet_ids = [aws_subnet.public.id]
 
-  # Allow HTTP inbound
+  # Allow http .... inbound
   ingress {
     rule_no    = 100
     protocol   = "tcp"
@@ -196,7 +194,6 @@ resource "aws_network_acl" "public" {
     to_port    = 80
   }
 
-  # Allow HTTPS inbound
   ingress {
     rule_no    = 110
     protocol   = "tcp"
@@ -206,7 +203,6 @@ resource "aws_network_acl" "public" {
     to_port    = 443
   }
 
-  # Allow SSH inbound
   ingress {
     rule_no    = 120
     protocol   = "tcp"
@@ -216,7 +212,6 @@ resource "aws_network_acl" "public" {
     to_port    = 22
   }
 
-  # Allow ephemeral ports inbound
   ingress {
     rule_no    = 130
     protocol   = "tcp"
@@ -226,7 +221,7 @@ resource "aws_network_acl" "public" {
     to_port    = 65535
   }
 
-  # Allow all outbound traffic
+  #         allow all outbound traffic
   egress {
     rule_no    = 100
     protocol   = "-1"
@@ -243,7 +238,7 @@ resource "aws_network_acl" "public" {
   }
 }
 
-# Network ACL for Private Subnets (Backend & Database)
+# network ACL for Private Subnets
 resource "aws_network_acl" "private" {
   vpc_id     = aws_vpc.main.id
   subnet_ids = [aws_subnet.private_backend.id, aws_subnet.private_database.id]
@@ -258,7 +253,6 @@ resource "aws_network_acl" "private" {
     to_port    = 0
   }
 
-  # Allow ephemeral ports from internet (for responses)
   ingress {
     rule_no    = 110
     protocol   = "tcp"
@@ -268,7 +262,6 @@ resource "aws_network_acl" "private" {
     to_port    = 65535
   }
 
-  # Allow all outbound traffic
   egress {
     rule_no    = 100
     protocol   = "-1"
@@ -285,13 +278,12 @@ resource "aws_network_acl" "private" {
   }
 }
 
-# Security Group for Frontend (Public Subnet)
+# security Group 
 resource "aws_security_group" "frontend_sg" {
   name_prefix = "${var.project_name}-frontend-sg"
   vpc_id      = aws_vpc.main.id
   description = "Security group for frontend instances"
 
-  # SSH access (restrict this in production!)
   ingress {
     description = "SSH"
     from_port   = 22
@@ -300,7 +292,6 @@ resource "aws_security_group" "frontend_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Frontend app access (port 3000)
   ingress {
     description = "Frontend App"
     from_port   = 3000
@@ -309,7 +300,6 @@ resource "aws_security_group" "frontend_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # All outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -324,13 +314,13 @@ resource "aws_security_group" "frontend_sg" {
   }
 }
 
-# Security Group for Backend (Private Subnet)
+# security Group 
 resource "aws_security_group" "backend_sg" {
   name_prefix = "${var.project_name}-backend-sg"
   vpc_id      = aws_vpc.main.id
   description = "Security group for backend instances"
 
-  # SSH access from frontend
+
   ingress {
     description     = "SSH from Frontend"
     from_port       = 22
@@ -339,7 +329,6 @@ resource "aws_security_group" "backend_sg" {
     security_groups = [aws_security_group.frontend_sg.id]
   }
 
-  # Backend API access (port 3001) from frontend
   ingress {
     description     = "Backend API"
     from_port       = 3001
@@ -348,7 +337,7 @@ resource "aws_security_group" "backend_sg" {
     security_groups = [aws_security_group.frontend_sg.id]
   }
 
-  # All outbound traffic
+  #                   all outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -363,13 +352,13 @@ resource "aws_security_group" "backend_sg" {
   }
 }
 
-# Security Group for Database (Private Subnet)
+
 resource "aws_security_group" "database_sg" {
   name_prefix = "${var.project_name}-database-sg"
   vpc_id      = aws_vpc.main.id
   description = "Security group for database instances"
 
-  # SSH access from frontend (for bastion)
+
   ingress {
     description     = "SSH from Frontend"
     from_port       = 22
@@ -378,7 +367,6 @@ resource "aws_security_group" "database_sg" {
     security_groups = [aws_security_group.frontend_sg.id]
   }
 
-  # Postgres access (5432) from backend
   ingress {
     description     = "PostgreSQL"
     from_port       = 5432
@@ -387,7 +375,6 @@ resource "aws_security_group" "database_sg" {
     security_groups = [aws_security_group.backend_sg.id]
   }
 
-  # All outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -402,7 +389,6 @@ resource "aws_security_group" "database_sg" {
   }
 }
 
-# Create key pair
 resource "aws_key_pair" "main" {
   key_name   = "${var.project_name}-key"
   public_key = file(var.ssh_public_key_path)
@@ -414,7 +400,6 @@ resource "aws_key_pair" "main" {
   }
 }
 
-# Frontend Instance (Public Subnet)
 resource "aws_instance" "frontend" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
@@ -443,7 +428,6 @@ resource "aws_instance" "frontend" {
   })
 }
 
-# Backend Instance (Private Subnet)
 resource "aws_instance" "backend" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
@@ -472,7 +456,6 @@ resource "aws_instance" "backend" {
   })
 }
 
-# Database Instance (Private Subnet)
 resource "aws_instance" "database" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
@@ -501,7 +484,7 @@ resource "aws_instance" "database" {
   })
 }
 
-# Setup Frontend Server with Docker
+# setup env
 resource "null_resource" "setup_frontend" {
   depends_on = [aws_instance.frontend]
 
@@ -545,7 +528,7 @@ resource "null_resource" "setup_frontend" {
   }
 }
 
-# Setup Backend Server with Docker (via bastion/frontend)
+
 resource "null_resource" "setup_backend" {
   depends_on = [aws_instance.backend, null_resource.setup_frontend]
 
@@ -592,7 +575,6 @@ resource "null_resource" "setup_backend" {
   }
 }
 
-# Setup Database Server with Docker (via bastion/frontend)
 resource "null_resource" "setup_database" {
   depends_on = [aws_instance.database, null_resource.setup_frontend]
 
