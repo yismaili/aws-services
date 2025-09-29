@@ -1,0 +1,7 @@
+.vagrant/
+.DS_Store
+
+test.c
+
+.vscode/
+.DS_Store
