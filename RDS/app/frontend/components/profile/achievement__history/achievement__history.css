@@ -1,0 +1,122 @@
+.achievements__history {
+  display: flex;
+  width: 90%;
+  margin: 0 auto 0.5rem;
+  justify-content: space-between;
+  height: 55%;
+  max-height: 55%;
+  position: relative;
+  font-family: probert;
+  min-height: 400px;
+  overflow: hidden;
+}
+
+.achievements__history__Scroll {
+  width: 32px;
+  height: 36px;
+  background-image: url("/img/home/next.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  position: absolute;
+  top: 50%;
+  right: 3%;
+  transform: translateY(-50%);
+  display: none;
+}
+
+@media (max-width: 1536px) {
+}
+
+/* xl */
+@media (max-width: 1280px) {
+}
+
+/* lg */
+@media (max-width: 1024px) {
+}
+
+/* md */
+@media (max-width: 768px) {
+  .achievements__history__Scroll {
+    display: block;
+
+
+  }
+  .achievements__history {
+    width: 100%;
+    height: 45%;
+    min-height: 200px;
+  }
+  .history {
+    width: 80%;
+    position: absolute;
+    left: 768px;
+  }
+  .achievements {
+    position: absolute;
+    width: 80%;
+    left: 768px;
+  }
+
+  .achievements__title{
+    font-size: 1.8rem;
+  }
+
+  .history__title{
+    font-size: 1.8rem;
+  }
+
+  .show__history {
+    left: 10%;
+    animation: fromLeft 1s;
+  }
+
+  .show__Achievement {
+    left: 10%;
+    animation: fromRight 1s;
+  }
+
+  .noshow__history{
+    animation: moveOutRight 1s;
+  }
+
+  .noshow__Achievement{
+    animation: moveOutLeft 1s;
+  }
+
+}
+
+/* sm */
+@media (max-width: 640px) {
+}
+
+/* xs */
+@media (max-width: 475px) {
+  .achievements__title{
+    font-size: 1.5rem;
+  }
+  .history__title{
+    font-size: 1.5rem;
+  }
+}
+
+@keyframes fromLeft {
+    from {left: 120%;}
+    to {left: 10%;}
+}
+
+@keyframes fromRight {
+    from {left: -120%;}
+    to {left: 10%;}
+}
+
+@keyframes moveOutLeft {
+    from {left: 10%;}
+    to {left: -120%;}
+}
+
+@keyframes moveOutRight {
+    from {left: 10%;}
+    to {left: 120%;}
+}
