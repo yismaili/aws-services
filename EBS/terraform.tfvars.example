@@ -1,33 +1,10 @@
-# AWS Configuration
-# aws_access_key = ""
-# aws_secret_key = ""
-aws_region     = "us-east-1"
 
-# Project Configuration
+aws_region = "us-east-1"
+
 project_name = "vps"
-environment  = "dev"
 
-# SSH Configuration
-ssh_public_key_path  = "/Users/yismaili/.ssh/id_rsa.pub"
-ssh_private_key_path = "/Users/yismaili/.ssh/id_rsa"
+ssh_public_key_path  = "/home/user/.ssh/terraform_key.pub"
+ssh_private_key_path = "/home/user/.ssh/terraform_key"
 
-# EC2 Instance Configuration
-instance_count = 3         
-instance_type  = "t3.small"
-instance_names = ["app-test", "app-test-2", "app-test-3"]
-
-# Storage Configuration
-root_volume_size = 25 
-
-# Feature Toggles
-enable_detailed_monitoring     = false
-enable_termination_protection  = false
-
-# Networking Configuration
-create_vpc    = false  
-vpc_ip_range  = "10.0.0.0/16"
-
-# Additional Configuration
-install_additional_tools = true
-docker_compose_version   = ""
-additional_tags          = ["docker", "docker-compose"]
+instance_type = "t3.small"
+ebs_volume_size = 50
