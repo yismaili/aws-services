@@ -16,7 +16,7 @@ export default function Winners({ gameOver }: props) {
   useEffect(() => {
     gameSocket.disconnect();
     setGameSocket(
-      io("0.0.0.0:3001/game", {
+      io("10.0.2.241:3001/game", {
         extraHeaders: {
           Authorization: Data.response.token,
         },
