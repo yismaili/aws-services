@@ -17,7 +17,7 @@ export default function SocketContextProvider({
   if(Data)
   {
   const [socket] = useState(
-    io("0.0.0.0:3001/chat", {
+    io("10.0.2.241:3001/chat", {
       extraHeaders: {
         Authorization: Data.response.token,
       },
@@ -25,7 +25,7 @@ export default function SocketContextProvider({
   );
 
   const [onlineSocket] = useState(
-    io("0.0.0.0:3001", {
+    io("10.0.2.241:3001", {
       extraHeaders: {
         Authorization: Data.response.token,
       },
@@ -33,7 +33,7 @@ export default function SocketContextProvider({
   );
 
   const [gameSocket, setGameSocket] = useState(
-    io("0.0.0.0:3001/game", {
+    io("10.0.2.241:3001/game", {
       extraHeaders: {
         Authorization: Data.response.token,
       },
