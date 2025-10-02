@@ -140,69 +140,6 @@ output "architecture_summary" {
   }
 }
 
-# output "deployment_instructions" {
-#   description = "Next steps for deployment"
-#   value = <<-EOT
-  
-#   ============================================
-#   DEPLOYMENT INSTRUCTIONS
-#   ============================================
-  
-#   1. SSH to Frontend Server:
-#      ssh ubuntu@${aws_instance.frontend.public_ip}
-  
-#   2. Deploy Frontend Application:
-#      cd ~/app
-#      git clone <your-frontend-repo>
-#      cd <frontend-directory>
-#      npm install
-#      npm run build
-     
-#      # Start with PM2
-#      pm2 start npm --name "frontend" -- start
-#      pm2 save
-#      pm2 startup
-  
-#   3. SSH to Backend Server:
-#      ssh -J ubuntu@${aws_instance.frontend.public_ip} ubuntu@${aws_instance.backend.private_ip}
-  
-#   4. Deploy Backend Application:
-#      cd ~/app
-#      git clone <your-backend-repo>
-#      cd <backend-directory>
-#      npm install
-     
-#      # The .env file is already created with database credentials
-#      cat .env  # Verify database connection details
-     
-#      # Run database migrations
-#      npm run migrate  # or your migration command
-     
-#      # Start with PM2
-#      pm2 start npm --name "backend" -- start
-#      pm2 save
-#      pm2 startup
-  
-#   5. Configure Nginx on Frontend (optional):
-#      sudo nano /etc/nginx/sites-available/default
-#      # Configure reverse proxy to port 3000
-#      sudo systemctl restart nginx
-  
-#   6. Test Database Connection from Backend:
-#      psql "${aws_db_instance.postgres.endpoint}" -U ${var.db_username} -d ${var.db_name}
-  
-#   ============================================
-#   DATABASE CONNECTION INFO (in backend .env)
-#   ============================================
-#   DATABASE_URL=postgresql://${var.db_username}:****@${aws_db_instance.postgres.endpoint}/${var.db_name}
-#   DB_HOST=${aws_db_instance.postgres.address}
-#   DB_PORT=5432
-  
-#   ============================================
-  
-#   EOT
-# }
-
 output "estimated_monthly_cost" {
   description = "Estimated monthly cost breakdown"
   value = {
