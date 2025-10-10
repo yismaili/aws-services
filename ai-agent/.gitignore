@@ -5,4 +5,3 @@ terraform.tfstate.backup
 .terraform.tfstate.lock.info
 .DS_Store
 terraform.tfvars
-src/
