@@ -1,0 +1,28 @@
+aws_region     = "us-east-1"
+aws_access_key = ""
+aws_secret_key = ""
+
+
+project_name = "vps-3tier"
+environment  = "dev"
+
+ssh_public_key_path  = "/Users/yismaili/.ssh/id_rsa.pub"
+ssh_private_key_path = "/Users/yismaili/.ssh/id_rsa"
+
+instance_type                 = "t3.small"
+root_volume_size              = 20
+enable_detailed_monitoring    = false
+enable_termination_protection = false
+
+vpc_ip_range = "10.0.0.0/16"
+
+install_additional_tools = true
+
+db_instance_class        = "db.t3.micro"
+db_allocated_storage     = 20
+db_engine_version        = "15.13"
+db_name                  = "pingpong"
+db_username              = "postgres"
+db_password              = "YourSecurePassword123!"
+db_backup_retention_days = 7
+db_multi_az              = false 
