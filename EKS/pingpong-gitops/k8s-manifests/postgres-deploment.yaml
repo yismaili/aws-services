@@ -17,7 +17,7 @@ spec:
         role: database
       containers:
       - name: postgres
-        image: postgres:latest
+        image: postgres:15
         ports:
         - containerPort: 5432
         env:
@@ -32,10 +32,10 @@ spec:
               name: pingpong-config
               key: POSTGRES_DB
         - name: PGDATA
-          value: /var/lib/postgresql/data/pgdata
+          value: /data/pgdata
         volumeMounts:
         - name: postgres-storage
-          mountPath: /var/lib/postgresql/data
+          mountPath: /data
         resources:
           requests:
             memory: "256Mi"
